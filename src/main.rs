@@ -1,7 +1,8 @@
+use chrono::prelude::*;
 use directories::UserDirs;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{ PathBuf };
 
 fn get_system_documents() -> Result<PathBuf, &'static str> {
     if let Some(user_dirs) = UserDirs::new() {
@@ -14,48 +15,69 @@ fn get_system_documents() -> Result<PathBuf, &'static str> {
     Err("UserDirs not available.")
 }
 
+fn create_folder(path: &std::path::Path) -> bool {
+    if !path.exists() {
+        if let Err(err) = fs::create_dir(path) {
+            eprintln!("Failed to create folder: {}", err);
+            false
+        } else {
+            true
+        }
+    } else {
+        false
+    }
+}
+
+fn create_file(path: &std::path::Path, base_filename: String) {
+    let mut counter = 0;
+    let new_filename = base_filename.to_string();
+
+    loop {
+        let file_path = path.join(format!("{}_{}.md", new_filename, counter));
+
+        if !file_path.exists() {
+            // Create the file
+            if let Err(err) = fs::write(&file_path, "# My Markdown Content") {
+                eprintln!("Failed to write file: {}", err);
+            } else {
+                println!("File '{}' created successfully.", file_path.to_string_lossy());
+            }
+
+            break; // Exit the loop after successfully creating the file
+        } else {
+            // File with the current name already exists, increment the counter
+            counter += 1;
+        }
+    }
+}
+
 fn main() {
     match get_system_documents() {
         Ok(data_dir) => {
-            println!("Data: {:?}", data_dir);
-
-            // Create a folder called "danielnotes" in the documents directory
             let folder_name = "danielnotes";
-            let danielnotes_path = data_dir.join(folder_name);
+            let mut danielnotes_path = data_dir.join(folder_name);
+            create_folder(&danielnotes_path);
 
-            if !danielnotes_path.exists() {
-                if let Err(err) = fs::create_dir(&danielnotes_path) {
-                    eprintln!("Failed to create folder: {}", err);
-                    return;
-                }
-            }
+            println!("Which Company is this note for?");
+            let mut company = String::new();
+            io::stdin()
+                .read_line(&mut company)
+                .expect("Failed to read line");
 
-            // Read input from the user to create a subfolder
-            println!("Enter a folder name:");
-            let mut folder_input = String::new();
-            io::stdin().read_line(&mut folder_input).expect("Failed to read line");
+            let company = company.trim();
+            danielnotes_path.push(company);
 
-            // Create a folder with the user's input under the "danielnotes" folder
-            let folder_path = danielnotes_path.join(folder_input.trim());
-            if !folder_path.exists() {
-                if let Err(err) = fs::create_dir(&folder_path) {
-                    eprintln!("Failed to create folder: {}", err);
-                    return;
-                }
-            }
+            create_folder(&danielnotes_path);
+            
+            let text_file_string: String = {
+                let local: DateTime<Local> = Local::now();
+                let formatted_date = local.format("%Y-%m-%d").to_string();
+                formatted_date
+            };
+            
+            create_file(&danielnotes_path, text_file_string);
 
-            // Read additional input from the user and write it to a file under the created folder
-            println!("Enter something to write to a file:");
-            let mut file_input = String::new();
-            io::stdin().read_line(&mut file_input).expect("Failed to read line");
 
-            // Create a file with the user's input under the created folder
-            let file_path = folder_path.join("user_input.txt");
-            if let Err(err) = fs::write(&file_path, file_input.trim()) {
-                eprintln!("Failed to write file: {}", err);
-            } else {
-                println!("File '{}' created successfully.", file_path.display());
-            }
         }
         Err(error) => {
             println!("Error: {}", error);
