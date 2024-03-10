@@ -2,9 +2,19 @@ use chrono::prelude::*;
 use directories::UserDirs;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
 use std::io::Write;
+use std::path::PathBuf;
 
+fn get_current_date() -> String {
+    // Get the current date and time in the local timezone
+    let local: DateTime<Local> = Local::now();
+
+    // Format the date as a string
+    let formatted_date = local.format("%Y-%m-%d").to_string();
+
+    // Return the formatted date string
+    formatted_date
+}
 
 fn get_system_documents() -> Result<PathBuf, &'static str> {
     if let Some(user_dirs) = UserDirs::new() {
@@ -41,35 +51,48 @@ fn create_folder(path: &std::path::Path) -> bool {
     }
 }
 
-fn copy_file(source_path: &std::path::Path, destination_path: &std::path::Path) -> io::Result<()> {
-    // Attempt to copy the file
-    fs::copy(source_path, destination_path)?;
+// fn copy_file(source_path: &std::path::Path, destination_path: &std::path::Path) -> io::Result<()> {
+//     // Attempt to copy the file
+//     fs::copy(source_path, destination_path)?;
 
-    println!("File copied successfully!");
+//     println!("File copied successfully!");
 
-    Ok(())
-}
+//     Ok(())
+// }
 
+fn create_file(path: PathBuf, base_filename: String) {
+    let current_date = get_current_date();
 
-fn create_file(path: &std::path::Path, base_filename: String) {
     let mut counter = 0;
-    let new_filename = base_filename.to_string();
 
+    // Construct the file path with base_filename, notes, and date
+    let mut file_path = path.join(format!("{}/notes/{}.md", base_filename, current_date));
+
+    // Ensure the directory structure exists
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            if let Err(err) = fs::create_dir_all(parent) {
+                eprintln!("Failed to create directory: {}", err);
+                return; // Return early if directory creation fails
+            }
+        }
+    }
     loop {
-        let file_path = path.join(format!("{}_{}.md", new_filename, counter));
-
         if !file_path.exists() {
             // Create the file
             if let Err(err) = fs::write(&file_path, "# My Markdown Content") {
                 eprintln!("Failed to write file: {}", err);
             } else {
-                println!("File '{}' created successfully.", file_path.to_string_lossy());
             }
 
             break; // Exit the loop after successfully creating the file
         } else {
-            // File with the current name already exists, increment the counter
+            // Increment the counter and update the file name
             counter += 1;
+            file_path = path.join(format!(
+                "{}/notes/{}_{}.md",
+                base_filename, current_date, counter
+            ));
         }
     }
 }
@@ -100,35 +123,72 @@ fn parse_command() -> Result<Vec<String>, &'static str> {
             if input_parts.len() == 3 {
                 Ok(input_parts)
             } else {
-                Err("Invalid number of inputs for 'file'. Please enter exactly four.")
+                Err("Invalid number of inputs for 'file'. Please enter exactly three.")
             }
         }
         _ => {
-            Err("Unsupported command. Please enter a valid command.")
+            // Return input_parts for other cases
+            Ok(input_parts)
         }
     }
 }
 
 fn main() {
-    match parse_command() {
-        Ok(parsed_input) => {
-            // Handle the parsed_input based on the command
-            match parsed_input[0].as_str() {
-                "create" => {
-                    // Handle 'create' case with parsed_input[1]
-                    println!("Handling 'create' case with parameter: {}", parsed_input[1]);
-                }
-                "file" => {
-                    // Handle 'file' case with parsed_input[1], parsed_input[2], and parsed_input[3]
-                    println!("Handling 'file' case with parameters: {}, {}", parsed_input[1], parsed_input[2]);
-                }
-                _ => {
-                    println!("Unknown command. No specific action taken.");
+    let mut danielnotes_path: Option<PathBuf> = None;
+    let mut downloads_path: Option<PathBuf> = None;
+
+    match get_system_documents() {
+        Ok(data_dir) => {
+            let folder_name = "danielnotes";
+            danielnotes_path = Some(data_dir.join(folder_name));
+            create_folder(danielnotes_path.as_ref().unwrap());
+
+            println!("Welcome to danielnotes!");
+        }
+        Err(error) => {
+            println!("Error: {}", error);
+        }
+    }
+
+    match get_downloads_folder() {
+        Ok(data_dir) => {
+            let folder_name = "danielnotes";
+            downloads_path = Some(data_dir.join(folder_name));
+        }
+        Err(error) => {
+            println!("Error: {}", error);
+        }
+    }
+
+    loop {
+        match parse_command() {
+            Ok(parsed_input) => {
+                // Handle the parsed_input based on the command
+                match parsed_input[0].as_str() {
+                    "create" => {
+                        // Handle 'create' case with parsed_input[1]
+                        if let Some(path) = danielnotes_path.clone() {
+                            create_file(path, parsed_input[1].clone());
+                        } else {
+                            eprintln!("Error: danielnotes_path is not available.");
+                        }
+                    }
+                    "file" => {
+                        // Handle 'file' case with parsed_input[1], parsed_input[2], and parsed_input[3]
+                        println!(
+                            "Handling 'file' case with parameters: {}, {}",
+                            parsed_input[1], parsed_input[2]
+                        );
+                    }
+                    _ => {
+                        println!("Unknown command. Exiting");
+                        break;
+                    }
                 }
             }
-        }
-        Err(err) => {
-            eprintln!("Error: {}", err);
+            Err(err) => {
+                eprintln!("Error: {}", err);
+            }
         }
     }
 }
