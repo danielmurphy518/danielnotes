@@ -126,11 +126,35 @@ fn parse_command() -> Result<Vec<String>, &'static str> {
                 Err("Invalid number of inputs for 'file'. Please enter exactly three.")
             }
         }
+        "fetch" => {
+            if input_parts.len() == 3 {
+                Ok(input_parts)
+            } else {
+                Err("Invalid number of inputs for 'file'. Please enter exactly three.")
+            }
+        }
         _ => {
             // Return input_parts for other cases
             Ok(input_parts)
         }
     }
+}
+
+fn fetch_files(directory_path: &str) -> io::Result<Vec<PathBuf>> {
+    let entries = fs::read_dir(directory_path)?;
+    let mut files = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+
+        let file_path = entry.path();
+
+        if file_path.is_file() {
+            // Push the file path into the vector
+            files.push(file_path);
+        }
+    }
+
+    Ok(files)
 }
 
 fn main() {
@@ -177,6 +201,12 @@ fn main() {
                         // Handle 'file' case with parsed_input[1], parsed_input[2], and parsed_input[3]
                         println!(
                             "Handling 'file' case with parameters: {}, {}",
+                            parsed_input[1], parsed_input[2]
+                        );
+                    }
+                    "fetch" => {
+                        println!(
+                            "Handling 'fetch' case with parameters: {}, {}",
                             parsed_input[1], parsed_input[2]
                         );
                     }
