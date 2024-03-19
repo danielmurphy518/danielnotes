@@ -3,7 +3,7 @@ use directories::UserDirs;
 use std::fs;
 use std::io;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn get_current_date() -> String {
     // Get the current date and time in the local timezone
@@ -140,21 +140,23 @@ fn parse_command() -> Result<Vec<String>, &'static str> {
     }
 }
 
-fn fetch_files(directory_path: &str) -> io::Result<Vec<PathBuf>> {
-    let entries = fs::read_dir(directory_path)?;
-    let mut files = Vec::new();
+fn fetch_files(path: &Path) -> io::Result<Vec<String>> {
+    let mut file_names = Vec::new();
+
+    let entries = fs::read_dir(path)?;
+
     for entry in entries {
         let entry = entry?;
+        let file_name = entry.file_name();
 
-        let file_path = entry.path();
+        let file_name_str = file_name.to_string_lossy().into_owned();
 
-        if file_path.is_file() {
-            // Push the file path into the vector
-            files.push(file_path);
+        if !file_name_str.starts_with('.') {
+            file_names.push(file_name_str.clone());
         }
     }
 
-    Ok(files)
+    Ok(file_names)
 }
 
 fn main() {
@@ -209,6 +211,16 @@ fn main() {
                             "Handling 'fetch' case with parameters: {}, {}",
                             parsed_input[1], parsed_input[2]
                         );
+                    }
+                    "list" => {
+                        if let Some(path) = danielnotes_path.as_ref() {
+                            match fetch_files(path) {
+                                Ok(files) => {
+                                    println!("Companies in danielnotes: {}", files.join(","));
+                                }
+                                Err(_) => println!("Error fetching files."),
+                            }
+                        }
                     }
                     _ => {
                         println!("Unknown command. Exiting");
