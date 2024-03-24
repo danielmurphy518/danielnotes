@@ -5,6 +5,10 @@ use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+static mut DOWNLOADS_PATH: Option<PathBuf> = None;
+static mut DOCUMENTS_FOLDER: Option<PathBuf> = None;
+
+
 fn get_current_date() -> String {
     // Get the current date and time in the local timezone
     let local: DateTime<Local> = Local::now();
@@ -51,16 +55,28 @@ fn create_folder(path: &std::path::Path) -> bool {
     }
 }
 
-// fn copy_file(source_path: &std::path::Path, destination_path: &std::path::Path) -> io::Result<()> {
-//     // Attempt to copy the file
-//     fs::copy(source_path, destination_path)?;
+fn copy_file(file: &String, destination: &String) -> std::io::Result<()> {
+    // Access DOWNLOADS_PATH in unsafe block
+    unsafe {
+        if let Some(downloads_path) = &DOWNLOADS_PATH {
+            // Clone the path so we can append the file name
+            let mut path = downloads_path.clone();
+            // Append the file name to the path
+            path.push(file);
 
-//     println!("File copied successfully!");
+            // Check if the file exists
+            if path.exists() {
+                println!("File {} exists in downloads directory.", file);
+            } else {
+                println!("Could not find file {} in downloads directory", file);
+            }
+        }
+    }
 
-//     Ok(())
-// }
+    Ok(())
+}
 
-fn create_file(path: PathBuf, base_filename: String) {
+fn create_file(path: &Path, base_filename: String) {
     let current_date = get_current_date();
 
     let mut counter = 0;
@@ -160,16 +176,18 @@ fn fetch_files(path: &Path) -> io::Result<Vec<String>> {
 }
 
 fn main() {
-    let mut danielnotes_path: Option<PathBuf> = None;
-    let mut downloads_path: Option<PathBuf> = None;
-
     match get_system_documents() {
         Ok(data_dir) => {
             let folder_name = "danielnotes";
-            danielnotes_path = Some(data_dir.join(folder_name));
-            create_folder(danielnotes_path.as_ref().unwrap());
-
-            println!("Welcome to danielnotes!");
+            unsafe {
+                DOCUMENTS_FOLDER = Some(data_dir.join(folder_name));
+            }
+            if let Some(path) = unsafe { DOCUMENTS_FOLDER.as_ref() } {
+                create_folder(path);
+                println!("Welcome to danielnotes!");
+            } else {
+                eprintln!("Error: DOCUMENTS_FOLDER is not available.");
+            }
         }
         Err(error) => {
             println!("Error: {}", error);
@@ -178,8 +196,9 @@ fn main() {
 
     match get_downloads_folder() {
         Ok(data_dir) => {
-            let folder_name = "danielnotes";
-            downloads_path = Some(data_dir.join(folder_name));
+            unsafe {
+                DOWNLOADS_PATH = Some(data_dir);
+            }
         }
         Err(error) => {
             println!("Error: {}", error);
@@ -192,19 +211,14 @@ fn main() {
                 // Handle the parsed_input based on the command
                 match parsed_input[0].as_str() {
                     "create" => {
-                        // Handle 'create' case with parsed_input[1]
-                        if let Some(path) = danielnotes_path.clone() {
-                            create_file(path, parsed_input[1].clone());
+                        if let Some(path) = unsafe { DOCUMENTS_FOLDER.as_ref() } {
+                            create_file(path.as_ref(), parsed_input[1].clone());
                         } else {
-                            eprintln!("Error: danielnotes_path is not available.");
+                            eprintln!("Error: DOCUMENTS_FOLDER is not available.");
                         }
                     }
                     "file" => {
-                        // Handle 'file' case with parsed_input[1], parsed_input[2], and parsed_input[3]
-                        println!(
-                            "Handling 'file' case with parameters: {}, {}",
-                            parsed_input[1], parsed_input[2]
-                        );
+                        copy_file(&parsed_input[1], &parsed_input[2]);
                     }
                     "fetch" => {
                         println!(
@@ -213,7 +227,7 @@ fn main() {
                         );
                     }
                     "list" => {
-                        if let Some(path) = danielnotes_path.as_ref() {
+                        if let Some(path) = unsafe { DOCUMENTS_FOLDER.as_ref() } {
                             match fetch_files(path) {
                                 Ok(files) => {
                                     println!("Companies in danielnotes: {}", files.join(","));
